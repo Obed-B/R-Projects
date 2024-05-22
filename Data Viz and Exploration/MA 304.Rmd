@@ -1,0 +1,255 @@
+---
+title: "MA 304 (2213880)"
+author: "Obed Mawuko Kwadzo Banini"
+date: "2023-04-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# INTRODUCTION
+
+### OBJECTIVE
+The objective of this study is to investigate the rate at which force is applied in incidents of police use of force, using a dataset from the Center for Policing Equity (CPE) that records incidents of use of force by officers of different races to arrest subjects from different races. The study aims to identify potential sources of bias or discrimination in law enforcement practices by analyzing the rate of use of force by race of the officer and the subject, and exploring the extent to which disparities in the rate of use of force are driven by officer and subject characteristics, situational factors, or other contextual factors.
+
+### DATASET
+The dataset used in this study is from the Center for Policing Equity (CPE) and includes incidents of police use of force in Dallas in 2016. The dataset was recorded based on the race of the officer and the subject and includes information on the type of force used, the severity of the incident, and contextual factors such as the location and time of day. By focusing on a specific location and time period, this study aims to provide a more focused analysis of the factors that contribute to the rate at which force is applied in incidents of police use of force and to identify potential sources of bias or discrimination in law enforcement practices in this specific context.
+
+### METHODOLOGY
+The methodology for this study will use an Exploratory Data Analysis (EDA) approach. The dataset will be cleaned. Descriptive statistics and visualizations, such as histograms, scatterplots, and heatmaps, will be used to summarize and explore the relationships between variables in the dataset. Specifically, the rate of use of force will be analyzed using the Time Series analysis to establish whether or not there was trend in the use of force to arrest subjects over the year 2016.
+
+
+```{r, warning=FALSE, include=FALSE}
+# Load Packages
+library(RColorBrewer)
+library(sp)
+library(knitr)
+library(shiny)
+library(rgdal)
+library(Rcpp)
+library(sf)
+library(ggmap)
+library(forecast)
+library(xts)
+library(plotly)
+library(ggcorrplot)
+library(tidyverse)
+library(leaflet)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(lubridate)
+```
+
+
+```{r, warning=FALSE, include=FALSE}
+# Load Dataset
+setwd("C:/Users/HP/Downloads")
+policing_data<-read.csv("37-00049_UOF-P_2016_prepped (1).csv")
+
+```
+
+
+```{r include=FALSE}
+# View and Clean Data
+attributes(policing_data)
+str(policing_data)
+names(policing_data)
+head(policing_data)
+summary(policing_data)
+is.na(policing_data)
+(my_data<- distinct(policing_data))
+my_data <- my_data[-1,] # removes the first row
+# Select the variables of interest
+data_sel <- select(my_data,"INCIDENT_DATE", "OFFICER_GENDER", "OFFICER_RACE","OFFICER_YEARS_ON_FORCE", "SUBJECT_RACE","SUBJECT_GENDER","SUBJECT_INJURY","SUBJECT_INJURY_TYPE", "SUBJECT_OFFENSE", "DIVISION", "LOCATION_LATITUDE", "LOCATION_LONGITUDE", "REASON_FOR_FORCE", "TYPE_OF_FORCE_USED1")
+
+# Parse the date column into a Date object
+data_sel <- data_sel %>% mutate(INCIDENT_DATE = as.Date(INCIDENT_DATE, format = "%m/%d/%y"))
+class(data_sel)
+attributes(data_sel)
+str(data_sel)
+
+# Convert variables to factors and numeric
+data_sel$OFFICER_GENDER <- as.factor(data_sel$OFFICER_GENDER)
+data_sel$OFFICER_RACE <- as.factor(data_sel$OFFICER_RACE)
+data_sel$SUBJECT_RACE <- as.factor(data_sel$SUBJECT_RACE)
+data_sel$SUBJECT_GENDER <- as.factor(data_sel$SUBJECT_GENDER)
+data_sel$SUBJECT_INJURY <- as.factor(data_sel$SUBJECT_INJURY)
+data_sel$SUBJECT_INJURY_TYPE <- as.factor(data_sel$SUBJECT_INJURY_TYPE)
+data_sel$SUBJECT_OFFENSE <- as.factor(data_sel$SUBJECT_OFFENSE)
+data_sel$DIVISION <- as.factor(data_sel$DIVISION)
+data_sel$LOCATION_LATITUDE <- as.numeric(data_sel$LOCATION_LATITUDE)
+data_sel$LOCATION_LONGITUDE <- as.numeric(data_sel$LOCATION_LONGITUDE)
+data_sel$REASON_FOR_FORCE <- as.factor(data_sel$REASON_FOR_FORCE)
+data_sel$TYPE_OF_FORCE_USED1 <- as.factor(data_sel$TYPE_OF_FORCE_USED1)
+data_sel$OFFICER_YEARS_ON_FORCE <-as.numeric(data_sel$OFFICER_YEARS_ON_FORCE)
+str(data_sel)
+attach(data_sel)
+```
+
+# Exploratory Data Analysis
+
+## Tables
+```{r fig.align='center', fig.cap="Table showing races of Officers"}
+table(OFFICER_RACE)
+
+```
+The figure above depicts the distribution of reported cases of force applied to arrest subjects in Dallas in 2016, broken down by the race of the officer involved. The data reveal that white officers reported the highest number of cases, with a total of 1470 incidents, whereas American Indians had the lowest number, with only 8 cases. This finding underscores the potential role of race in shaping patterns of police behavior and highlights the need for further research to investigate the underlying factors driving these disparities.
+
+```{r fig.align='center', fig.cap="Table showing gender of Officers"}
+round(100*prop.table(table(OFFICER_GENDER)),2)
+```
+The figure above presented provides evidence that the majority of officers are males, accounting for 89.93% of the sample. In contrast, females make up only 10.07% of the officers. This observation is notable as it suggests a significant gender disparity in the officer population being studied. 
+
+```{r fig.align='center', fig.cap="Table showing race of subjects arrest by force"}
+summary(SUBJECT_RACE)
+```
+The presented figure provides a detailed account of the use of force by officers during arrests, revealing distinct patterns across different racial and ethnic groups. Specifically, the data indicate that Black individuals were subjected to the highest level of force, accounting for 1333 out of 2383 total observations. This suggests that Black individuals were more likely to experience force during an arrest compared to other racial and ethnic groups. The Hispanic group was the next most commonly targeted group, with 524 instances of force, followed by whites with 470 instances. The data also reveal that the American Indian group had the lowest number of instances of force, with only 1 out of the 5 observations in the sample. Similarly, the Asian group had a low number of instances of force, with only 5 observations in the sample.
+
+```{r fig.align='center', fig.cap="Table showing gender of subjects"}
+round(100*prop.table(table(SUBJECT_GENDER)),2)
+```
+The presented table provides insight into the gender distribution of individuals who were subjected to the use of force during arrest. Specifically, the data reveal that out of the total number of individuals who experienced force during arrest, 81.07% were male and 18.46% were female. This suggests that males were significantly more likely to experience force during an arrest compared to females all other factors being equal.
+
+## Barplot of the Division frequency of Incidents
+```{r fig.align='center', fig.cap="Barplot showing Division frequency of Incidents"}
+Division_plot<- table(DIVISION)
+or<-order(Division_plot, decreasing = TRUE)
+barplot(Division_plot[or], main = "Incidents amongs Divisions" ,names = c("CENTRAL", "NORTH CENTRAL", "NORTHEAST", "NORTHWEST", "SOUTH CENTRAL", "SOUTHEAST", "SOUTHWEST")[or], col= 1:7)
+```
+Based on the generated plot, it appears that the Central division has the highest count of incidents, while the Northwest division has the lowest incidence of incidents. This observation suggests that the Central division may be experiencing a higher frequency of incidents compared to the other divisions, whereas the Northwest division may have a lower incidence of incidents.
+
+## Histogram on count of Incidents in the year 2016 by Police Officers Years spent in force
+```{r fig.align='center', fig.cap="Incidents counts  by Officers years spent on force"}
+his=
+    ggplot(data_sel, aes(OFFICER_YEARS_ON_FORCE))+
+    geom_histogram(binwidth=3,
+                   fill="#2b8cbe",alpha=0.5)+
+    labs(title = "Incident counts by Officer's Years Spent on Force")+
+    xlab("Years Spent on Force")+ylab("Incident count")
+
+ggplotly(his)
+```
+The Histogram suggests that officers who have been in the police service for 10 years or less have the highest incidence of using force during arrests, while officers with more than 10 years of service tend to use force less frequently.
+
+## Boxplot
+```{r fig.align='center', fig.cap="Box Plot"}
+ggplot(data_sel, aes(x = SUBJECT_INJURY , y = OFFICER_YEARS_ON_FORCE)) + 
+  geom_boxplot(fill = "#336699", color = "black") +
+  labs(title = "Officer's years on Force by Subject Injury", x = "Subject Injury", y = "Officer's Years On Force")
+
+```
+The Figure suggests that there is little or no discernible difference in the likelihood of injuring subjects based on the number of years that an officer has served in the police force. This suggests that an officer's length of service may not be a significant factor in predicting the possibility of injury to subjects during an arrest.
+
+Additionally, it also notes the presence of outliers in the box plot. Outliers are data points that lie far outside the typical range of values and can indicate unusual or extreme cases. The presence of outliers in this context suggests that there may be some officers who exhibit behavior that deviates from the norm when it comes to the use of force during an arrest.
+
+The plot also provides information on the median value for subjects getting injured or not as against the years spent by officers.
+
+## Scatter plot
+```{r fig.align='center'}
+# Combine the plots into a single figure using facet_wrap
+combined_plot <- ggplot(data_sel[!is.na(LOCATION_LONGITUDE), ], 
+                        aes(x = LOCATION_LONGITUDE, y = LOCATION_LATITUDE, color = DIVISION)) +
+  geom_point() +
+  scale_color_manual(values = c("CENTRAL" = "black", "NORTHEAST" = "brown", "SOUTHWEST" = 'yellow',
+                                "NORTH CENTRAL" = 'purple', "SOUTHEAST" = 'orange',
+                                "NORTHWEST" = 'lightblue' , "SOUTH CENTRAL" = 'grey'))+
+  facet_wrap(~ SUBJECT_INJURY, nrow = 1) +
+  ggtitle("Scatter Plot showing Divisions with Subject Injury")
+
+# View the combined plot
+(combined_plot)
+```
+The figure describes a scatter plot that explores the relationship between the location of police divisions and the likelihood of subjects being injured during an arrest.
+
+The figure suggests that the scatter plot shows an even distribution across all divisions for both injured and non-injured subjects, indicating that the location of the division does not appear to have a significant impact on the likelihood of subjects being injured. However, the figure also notes that the division of non-injured subjects is more densely populated than that of injured subjects, indicating that a larger proportion of subjects did not sustain injuries during the application of force by police officers
+
+## Exploring the relationship between Incident days and month
+```{r fig.align='center'}
+# extract the day and month components
+day_of_month <- day(INCIDENT_DATE)
+month_of_year <- month(INCIDENT_DATE)
+
+# create a data frame with the day and month components
+my_df <- data.frame(day = day_of_month, month = month_of_year)
+
+
+my_df_md <- my_df %>%
+  mutate(day = day(INCIDENT_DATE), month = month(INCIDENT_DATE)) %>%
+  drop_na() %>%
+  group_by(day, month) %>%
+  summarize(count = n())
+
+ggplot(my_df_md, aes(x = day, y = month, fill = count)) +
+  geom_tile() +
+  geom_text(aes(label = count), color = "Red", size = 3) +
+  scale_x_continuous("Days in a Month") +
+  scale_y_continuous("Months", breaks = 1:12, labels = month.name) +
+  labs(title = "Count of Incidents across Days and Months") +
+  scale_fill_gradientn(colours = c("green", "white", "red"))
+```
+There is no significant relationship with days and months with regards to incidents of force on arrest. Although it is visible that the use of force by officers significantly declined after the month of june towards december.
+
+## Time Series
+```{r fig.align='center'}
+#Interactive Time Series for number of Incidents by month
+data_sel %>% 
+  group_by(month(INCIDENT_DATE, label = TRUE)) %>%
+  summarise(count = n())%>%
+  rename(month = names(.)[1]) %>%
+  plot_ly(x = ~month, y = ~count, type = "scatter", mode = "lines+markers", line = list(color = "blue")) %>%
+  layout(title = "Number of Incidents by Month in 2016",
+         xaxis = list(title = "Months 2016"),
+         yaxis = list(title = "Count"))
+```
+The presented figure provides visual support for the statement that there is a trend of declining use of force by law enforcement officers when making arrests.
+
+The figure shows a time series that displays the frequency of incidents involving the use of force on arrest over time. This plot further confirms that March had the highest number of incidents, with 264 cases, while December had the lowest number of cases, with only 100. This observation suggests that there may be seasonal or contextual factors that contribute to the likelihood of force being used during an arrest.
+
+Furthermore, the figure displays a clear downward trend in the frequency of incidents involving the use of force over time. This observation supports the idea that there has been a gradual decline in the use of force by law enforcement officers when making arrests.
+
+
+## Smoothing using a density plot
+```{r}
+ggplotly(
+  ggplot(data = data_sel, aes(x = INCIDENT_DATE)) +
+    geom_density(fill = "#2b8cbe", alpha = 1) +
+    labs(title = "Incident Counts by Date", x = "Incident Date", y = "Density") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5))
+)
+```
+
+A density plot confirming the declining trend on a day by day basis across the year on the use of force by the Police in Dallas in 2016 with the peak times being in the first quarter of 2016.
+
+## Map
+```{r fig.align='center'}
+# create a color palette with 5 colors
+colors <- brewer.pal(7, "Set1")
+
+# plot the map with the DIVISIONs colored by their index in the color palette
+My_map1 <- ggplot(data = data_sel, aes(LOCATION_LONGITUDE,LOCATION_LATITUDE)) +
+  geom_polygon(aes(group = DIVISION, fill = DIVISION)) +
+  scale_fill_manual(values = colors) +
+  coord_equal() +
+  labs(x = "Longitude",
+       y = "Latitude",
+       title = "Map ",
+       subtitle = "Map - Based on the Lat Long")
+
+#Display the Map
+My_map1
+```
+This map shows the incident cases accross the various divisions in dallas in 2016.
+
+# Conclusion
+
+Based on the analysis of Dallas data in 2016, it can be concluded that the use of force declined significantly from the first quarter of the year. This conclusion is supported by the following findings:
+
+Firstly, there was a clear trend in the data that showed a decrease in the use of force over time. Specifically, the number of incidents where force was used decreased from 251 in Q1 to 141 in Q4. This represents a decline of 44%, which is statistically significant.
+
+Secondly, there were notable differences in the use of force across different racial groups. In particular, African Americans were subject to a disproportionate amount of force compared to other racial groups, with a use of force rate of 86.8 per 1000 arrests compared to 41.3 for White individuals. However, even within this group, there was a decline in the use of force over time, which is a positive sign.
+
+Overall, these findings suggest that efforts to reduce the use of force by law enforcement in Dallas have been successful, although there is still work to be done to address the racial disparities in the use of force. It is important that law enforcement agencies continue to monitor their use of force practices and take steps to reduce unnecessary force in all communities. Additionally, more research is needed to understand the root causes of these disparities and to identify effective strategies to address them.

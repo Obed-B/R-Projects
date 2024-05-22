@@ -1,0 +1,196 @@
+---
+title: "MA331-Report: 2213880"
+author: "Banini, Obed"
+subtitle: TED Talks by Speaker Gabby Giffords and Speaker Jessica Ladd
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+### Don't delete this setup code chunk from your file
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, comment = NULL)   ## DON'T ALTER THIS: this is to prevent printing the code or any unnecessary addition in your final "html" report file.
+
+# You can extend this list below to load all the packages required for your analyses:
+#====================================================================================
+
+# load the dsEssex
+library(dsEssex)
+
+# laod the data set
+library(tidyverse)
+library(tidytext)
+library(dplyr)
+library(ggplot2)
+library(ggrepel)
+library(tidyr)
+library(textdata)
+library(gridExtra)
+
+# load the 'ted_talks' data and filter out my TED talk speakers
+#=========================
+# laod the data set
+data("ted_talks")
+MyData <- ted_talks %>%
+  filter(speaker %in% c("Gabby Giffords", "Jessica Ladd"))
+```
+
+## Introduction
+
+This report seeks to present and compare two TED Talk speakers by name Gabby Giffords and Jessica Ladd through text analytics and sentiment analytics. 
+Gabby Giffords in 2014 spoke on the topic: "Be passionate. Be courageous. Be your best." Jessica Ladd in 2016 spoke on the topic is titled: "The reporting system that sexual assault survivors want." This report will try to project the words and sentiments (positive and negative) and also compare the relationship in terms of choice of words and sentiments shared by the speakers.
+
+
+
+## Methods
+
+Firstly, the process will start cleaning the data, removing stopwords to help focus on the main vocabulary of speakers to gain insight. Secondly, the both speakers will be filtered out individually for descriptive analysis to made then plot against each other to determine if vocabulary used by both speakers are mutual in any way. This process will be followed by a sentiment analysis using the "bing" and "nrc" lexicon to gain various insights. 
+Descriptive statistics, Data Exploration, Correlation analysis and odds ratio summary statistics are the statistical summary measures that will be used to compare results, and the visualization that will produced are scatter plots, bar charts and frequency tables.
+
+
+
+
+## Results
+
+```{r include=FALSE}
+#Tidying and tokenising of filtered data in single words per observation and removing stopwords in each speakers tokens 
+tidy_data <- MyData %>% 
+  unnest_tokens(word, text)
+
+ted_talks_nonstop <- tidy_data %>%
+  anti_join(get_stopwords())
+```
+
+```{r fig.cap="1", fig.align='center'}
+#Sum the relevant tokens for each speaker
+ted_talks_nonstop %>% count(speaker)
+```
+From the figure above Gabby Giffords has more tokenised words than Jessica Ladd
+
+Fig 2.
+```{r fig.cap="2", fig.align='center'}
+# Filtering out Gabby's words and Jessica's to enable us visualise their top 25 words each
+Gabbys_words <- ted_talks_nonstop %>%
+  filter(speaker == "Gabby Giffords") %>% 
+  count(speaker, word, sort = TRUE)
+
+
+Jessicas_words <- ted_talks_nonstop %>%
+  filter(speaker == "Jessica Ladd") %>% 
+  count(speaker, word, sort = TRUE)
+
+
+Gabby_Plot <- Gabbys_words %>%
+  slice_max(n, n = 25) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word)) + ggplot2::geom_col()
+```
+
+
+```{r}
+# Plot for Jessica's word count
+Jessica_Plot <- Jessicas_words %>%
+  slice_max(n, n = 25) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(n, word)) + ggplot2::geom_col()
+```
+Fig 2 shows that Gabby's most used word in the Talk is "gabby" and Jessica's most used word is "assault" which occurred 8 times and followed closely by college which occurred 7 times in the Ted talk.
+
+```{r}
+grid.arrange(Gabby_Plot, Jessica_Plot, ncol=2)
+```
+
+
+
+```{r fig.cap="3", fig.align='center'}
+#Plot to find if there is a relationship that exists in the vocabulary of both speakers
+ted_talks_nonstop %>%
+  count(word, speaker, sort = TRUE) %>%
+  group_by(speaker) %>%
+  filter(sum(n) > 100) %>%
+  ungroup() %>%
+  pivot_wider(names_from = speaker, values_from = n, values_fill = 0) %>%
+  ggplot(aes(`Gabby Giffords`, `Jessica Ladd`)) +
+  geom_abline(color = "red", size = 1.2, alpha = 0.8, lty = 2) +
+  geom_text_repel(aes(label = word), max.overlaps = 20)
+```
+In fig. 3, it is evident that both speakers do not have a common vocabulary but have common adjectives and adverbs to describe their words. Examples are like, just, first, going, go and back. Words like yes and got were used by only Gabby Giffords and Jessica Ladd on the other hand was the only one that used words like system, type, information and others.
+
+```{r}
+#find out how many negative and positive sentiments each speaker has used using the bing lexicon
+get_sentiments("bing")
+word_sentiment <- ted_talks_nonstop %>%
+  inner_join(get_sentiments("bing"))
+
+(sentiment_counts <- word_sentiment %>%
+    count(speaker, sentiment))%>%
+  mutate(total = sum(n), percent = n / total * 100) %>%
+  filter(sentiment == "positive") %>%
+  arrange(desc(percent))#find the total number of words in each speaker, and percentage of each sentiment and filter the results for only positive sentiment
+
+sentiment_counts <- word_sentiment %>%
+  # count by speaker and sentiment
+  count(speaker, sentiment)
+```
+The table above shows that Gabby had a higher percentage(58.2%) of positive sentiment as compared to Jessica's(6.73%). It also shows that Jessica had more negative sentiments than positive sentiments.
+
+```{r}
+#Top negative and positive sentimental words for both speakers
+
+word_sentiment <- ted_talks_nonstop %>%
+  inner_join(get_sentiments("bing"))
+
+(sentiment_counts <- word_sentiment %>%
+    count(word, sentiment))
+  
+word_counts <- word_sentiment %>%
+  # count by word and sentiment
+  count(speaker, word, sentiment)
+
+#top sentiment words by both speaker
+top_words <- word_counts %>%
+  # group by sentiment
+  group_by(sentiment, speaker) %>%
+  slice_max(n, n = 7) %>%
+  mutate(word = reorder(word, n)) %>%
+  ungroup()
+#Plot to visualize top 7 positive and negative sentiment for both speakers with their counts 
+ggplot(top_words, aes(n, word, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(speaker~ sentiment, scales = "free")
+```
+In the Figure, the sentiment with the highest positive and negative occurrences for Gabby Giffords well(14 times) and hard(8 times) respectively and for Jessica Ladd, like for positive and assualt for negative. They appeared 5 and 8 times respectively.
+
+```{r incude=FALSE}
+#get sentiments using the nrc lexicon and count by speaker and display in wide format
+
+nrc_sentiment <- ted_talks_nonstop %>%
+  inner_join(get_sentiments("nrc")) %>%
+  count(speaker, sentiment) %>%
+  pivot_wider(names_from = speaker, values_from = n, values_fill = 0)
+
+#A function to compute OR odds summary statistics on sentiments for speakers
+compute_OR <- function(numerator, denominator, correction = TRUE){
+  if(correction){
+    ODDS_N = (numerator + 0.5) / (sum(numerator) - numerator + 0.5)
+    ODDS_D = (denominator + 0.5) / (sum(denominator) - denominator + 0.5)
+  } else {
+    ODDS_N = numerator / (sum(numerator) - numerator)
+    ODDS_D = denominator / (sum(denominator) - denominator)
+  }
+  OR = ODDS_N/ODDS_D
+}
+
+nrc_sentiment %>%
+mutate(OR = compute_OR(`Gabby Giffords`, `Jessica Ladd`, correction = FALSE), log_OR = log(OR), sentiment = reorder(sentiment, log_OR)) %>%
+  arrange(desc(OR))%>%
+  ggplot(aes(sentiment, log_OR, fill = log_OR < 0)) +
+  geom_col(show.legend = FALSE) +
+  ylab("Log odds ratio") + ggtitle("The association between sentiments of speakers") +
+  coord_flip() + 
+  scale_fill_manual(name = "", values = c("darkgreen", "red"))
+```
+
+In the tibble above the OR odds shows that Gabby showed more sentiments in Surprise, joy, disgust, sadness, and anticipation than Jessica who showed fear, anger, negative, positive and trust as her sentiments in her Ted talk.
+
+
+In conclusion, based on the evident produced and speeches by both speakers we can conclude that Gabby Giffords was out to encourage and spur people on with Her Ted talk whereas Jessica Ladd was a cry for help hence getting more negative sentiments than positives. 
